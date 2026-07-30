@@ -1,0 +1,7 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+# The denylist names the very identifiers it exists to hide (hostname, client and
+# project names). It is a local gate artifact — never publish it.
+.scrub-denylist
