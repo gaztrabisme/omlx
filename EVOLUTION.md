@@ -1,7 +1,7 @@
 # Evolution Log — omlx
 
 The loop that turns real use into skill improvements. Mechanism:
-`../core/references/evolution-loop.md`. Harvest source: real traces from projects that call a
+`../evolution/references/loop.md`. Harvest source: real traces from projects that call a
 local oMLX server, plus live probes against a running install.
 
 **Standing rule for this skill:** every non-obvious behavioural claim carries the oMLX version

@@ -129,7 +129,7 @@ batching scheduler and the prefix cache.
 - **Evolve from real use** — every non-obvious behaviour this skill asserts is dated and
   version-stamped, because two of them have already changed between oMLX releases. A
   contradicted claim gets corrected *with the reproducing command*, and the correction is
-  recorded in `EVOLUTION.md`. See `../core/references/evolution-loop.md`.
+  recorded in `EVOLUTION.md`. See `../evolution/references/loop.md`.
 - **Pushback & teach** — challenge "just point it at the local model" when the workload is
   coverage-critical (SpecPrefill and context truncation silently drop input),
   reproducibility-critical (batching breaks greedy determinism), or needs an impartial judge
