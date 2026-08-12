@@ -62,6 +62,27 @@ omlx {start,stop,restart,serve,launch,diagnose} [--version]
 
 ## Lifecycle traps
 
+**`GET /v1/models` is not a health check, and using it as one is the most common
+substitution for the probe.** It enumerates what is *configured*, not what is *loaded*, so it
+answers 200 with a full model list against a server holding nothing in memory. Measured
+2026-08-12, same instant:
+
+```bash
+curl -s -H "Authorization: Bearer $K" :8000/v1/models    | jq '.data | length'   # 7
+curl -s -H "Authorization: Bearer $K" :8000/api/status   | jq '.models_loaded'   # 0
+```
+
+Seven models listed, zero resident. Every caller that took the first line as "oMLX is up"
+green-lit a cold load of tens of GB as if it were a warm call — the cost the probe exists to
+surface. **`models_loaded` / `loaded_models` from `/api/status` is the truth**; `/v1/models`
+tells you only that the process is answering.
+
+This is not hypothetical drift: `omlx_probe.sh` has not run since 2026-07-30, and in the same
+window ad-hoc `curl /v1/models` health checks appear across four separate projects. One of
+them documents the probe as a prerequisite in its own `CLAUDE.md` and then doesn't run it.
+The probe is one command and it distinguishes the two states; a curl that cannot tell them
+apart is worse than no check, because it returns green.
+
 **Don't `omlx restart` while the GUI app owns the server.** The app respawns its own server
 and you get a collision.
 

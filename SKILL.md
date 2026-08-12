@@ -88,7 +88,7 @@ batching scheduler and the prefix cache.
 
 | You need | Do this | Depth |
 |---|---|---|
-| Any call at all | `scripts/omlx_probe.sh --model <id>` first — server up, key valid, model **loaded**, scheduler not saturated, and the flags that silently change behaviour. Add `--canary` before a long run, `--deep` to prove enforcement | `references/serving-ops.md` |
+| Any call at all | `scripts/omlx_probe.sh --model <id>` first — server up, key valid, model **loaded**, scheduler not saturated, and the flags that silently change behaviour. Add `--canary` before a long run, `--deep` to prove enforcement. **Not a `curl /v1/models`** — that returns 200 with every model listed while nothing is loaded, so it cannot see the cold load it is supposed to warn you about | `references/serving-ops.md` |
 | Typed JSON out of a local model | `omlx_client.chat_json(..., with_meta=True)` with a schema **and** an abstention branch — `with_meta` is what returns the enforcement proof the Output Contract asks you to record | `references/request-contract.md` |
 | The same over N items | `scripts/omlx_batch.py` — enforcement proven per item, abstention branch required, JSONL audit trail out | `references/eval-playbook.md` |
 | The model rambled / truncated / ignored the schema | thinking flag, then `response_format.type` + `name`, then `max_tokens` headroom | `references/request-contract.md` |
