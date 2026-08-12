@@ -93,7 +93,8 @@ trial, so **retry beats prompt-tuning** for scatter. Prompt-tuning is for system
 **Sampling matters more than usual.** Greedy (temp 0) gave 12/12 hits, median 3 px error. The
 model's own instruct preset (temp 0.7 / top_p 0.8 / top_k 20 / presence_penalty 1.5) gave
 11/12, median 27 px, ±40 px jitter. `presence_penalty` on a two-integer output is actively
-harmful. Send explicit sampling params for grounding.
+harmful — **for short structured outputs; see the non-English OCR note below before
+generalising it to long free text**. Send explicit sampling params for grounding.
 
 **Always give it an abstention branch** (`found: false` + `reason`) — the schema in
 `request-contract.md`. A forced `{x,y}` invents a click for a target hidden behind a menu.
@@ -110,6 +111,31 @@ fallback.
 **Specialist models can be prompt-brittle.** One document-OCR model degenerates into infinite
 token repetition on a generic instruction and works perfectly (~166 tok/s) with the exact
 grounding prompt from its model card. Use the card's prompt verbatim first, then vary.
+
+**Degeneration is not confined to specialist models on generic prompts — non-English
+full-page OCR triggers it on general-purpose VLMs too.** Measured on a Vietnamese company
+report, 2026-07-30:
+
+| Model | Result |
+|---|---|
+| gemma-4-12B, temp 0.0 | looped one phrase (`nâng cao hiệu quả kinh doanh`) ×18, ran 51.1 s, truncated at the 1200-token cap — **and invented a page**: it described body content for a page that is a table of contents |
+| Holo-3.1-35B | 30.0 s, garbled — `đơn đơn vị`, a stray Hangul `독 lập`, `-.Report tài chính` |
+
+Temperature 0 did not prevent it; the loop happened *at* greedy. The engagement's verdict was
+that the approach worked but **not with an oMLX-served vision model**, and it fell back to a
+dedicated OCR engine.
+
+**Treat full-page OCR in a non-Latin-diacritic script as out of scope for these VLMs until
+you have measured otherwise on your own page.** Bounded extraction — a field, a line, a label
+from a crop — is a different task and is not implicated here. This is the common case for a
+Vietnam-based practice, so measure it before promising it.
+
+One mechanism worth testing, from the config rather than from a run: the two 35B models carry
+`presence_penalty: 1.5` in `model_settings.json`; **gemma-4-12B carries none**, and neither
+does the global sampling block. The model that looped is the one with no repetition penalty.
+That inverts the grounding advice above into a scope question — `presence_penalty` is
+actively harmful on a two-integer coordinate output, and may be load-bearing on long free
+text. **Unverified**: settling it needs a paired generation, which has not been run.
 
 **Prefer a real API to a VLM whenever the surface is cooperative.** An accessibility-API-first
 click driver ran 2.4 s vs 6.4 s (2.7× faster), 20/20, deterministic, no GPU — the VLM became
