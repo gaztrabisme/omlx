@@ -104,6 +104,27 @@ rather than trusting a rate. The first-ever call on a fresh install is worse: oM
 JIT-compiles its own attention kernels (~7 min once), then caches to disk. Budget for it, or
 warm explicitly with `POST /v1/models/{id}/load` (which blocks).
 
+**Port 8000 is contested, and oMLX wins quietly.** The zombie-port race above is oMLX
+against *itself*. These two are oMLX against *someone else's service*, and both bit inside
+eleven days:
+
+- **oMLX absorbs a neighbour's port.** It came up mid-run on `127.0.0.1:8000`, the port
+  another service had published, and swallowed all loopback traffic to it. The tell that
+  wasted the time: **oMLX's FastAPI answers `/openapi.json`**, so the neighbour's health
+  check kept passing while its uploads 404'd. Fix was to republish the neighbour elsewhere.
+- **The IPv4/IPv6 split.** `python3 -m http.server 8000` bound `*:8000` on **IPv6** without
+  erroring, because oMLX holds **IPv4** `127.0.0.1:8000`. An agent's `curl localhost:8000`
+  resolved `::1` and reached the new server; a browser resolved IPv4 and reached oMLX's
+  `{"detail":"Not Found"}`. Both parties reported that it "worked", on different servers.
+
+So `lsof -nP -ti :8000` is not enough — it will happily show one listener per family. Check
+both, and treat a 200 from port 8000 as "something answered", never as "my service answered":
+
+```bash
+lsof -nP -iTCP:8000 -sTCP:LISTEN        # every listener, both families
+curl -s :8000/openapi.json | head -c 80 # if this is oMLX's schema, it is oMLX
+```
+
 **Unpinned models vanish.** `idle_timeout` (900 s here) unloads them. That is a fine way to
 retire a model without a restart, and a nasty surprise mid-pipeline. Pin what must stay hot.
 
