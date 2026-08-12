@@ -244,3 +244,116 @@ Still open:
 - **Verdict: PENDING.** Two dogfoods on one machine is not two independent real uses. The
   falsification rate across two rounds (6 claims in round 2, 4 in round 1) is itself the
   argument for keeping it PENDING: this skill's content decays faster than its structure.
+
+---
+
+## Evolution 3 — 2026-08-12 — the pre-flight was replaced by a check that cannot fail
+
+First harvest by the `evolution` loop. Window: since Evolution 2 (2026-07-30).
+
+### Harvest scope
+
+114 transcripts filtered for `127.0.0.1:8000` / `omlx` / `mlx_lm` / `response_format` /
+`enable_thinking`; the live server read-only (`/api/status`, `/v1/models`,
+`/v1/models/status`, `~/.omlx/settings.json`, `model_settings.json` — no model loaded, no
+generation, no setting changed); three consumer codebases that call oMLX; the read-once log;
+the prompt history.
+
+**The skill fired once in the window** — `a client project workspace`, 2026-07-29T17:08:46Z, one
+minute before the birth commit and 8.5 h before the Evolution 2 dogfood. It was a real use
+and a load-bearing one: the probe caught a `presence_penalty: 1.5` default that was biasing
+labels, and principle 5 was invoked verbatim to reject a two-model pipeline. It does not
+count toward `KEEP` — same operator, same hour as authoring.
+
+**Correction to the triage table:** it reported 8 references with zero reads. That was a
+`triage.py` path bug (fixed, `evolution@38597a2`); the true count is 0. The references were
+read — by the two dogfood critics, and by nobody since.
+
+### Patterns found
+
+1. **`omlx_probe.sh` has not run since 2026-07-30, and `curl /v1/models` replaced it** —
+   Impact: H, Effort: L. Seven ad-hoc health checks across four projects. Measured at one
+   instant, 2026-08-12: `/v1/models` → 200 with 7 models listed; `/api/status` →
+   `models_loaded: 0`. It enumerates what is configured, not what is resident, so every one
+   of those checks green-lit a cold load of tens of GB as a warm call. One project documents
+   the probe as a prerequisite in its own `CLAUDE.md` and then doesn't run it.
+2. **Vietnamese full-page OCR fails on every oMLX-served VLM, and the skill has no
+   non-English guidance at all** — Impact: H, Effort: M. gemma-4-12B at temp 0.0 looped one
+   phrase ×18, ran 51.1 s, truncated at the 1200-token cap and invented body content for a
+   table-of-contents page; Holo-3.1-35B garbled it. `grep -i 'vietnam\|non-english'` over the
+   whole skill: no hits. `model-selection.md` scoped degeneration to a *specialist* model on
+   a *generic* instruction — both failures are general-purpose models on their intended task,
+   at greedy.
+3. **Port 8000 collides with neighbours, in two directions the skill doesn't cover** —
+   Impact: H, Effort: L. oMLX absorbed another service's published port and its FastAPI
+   answered `/openapi.json`, so that service's health check passed while its uploads 404'd.
+   Separately, `http.server 8000` bound IPv6 without error because oMLX holds IPv4 — agent
+   and browser reached different servers and both reported success.
+4. **The five references are read only during authoring** — Impact: H, Effort: L. Every
+   recorded read belongs to one of the two dogfood critics. The one real use read none of
+   them: `SKILL.md` (injected) plus `omlx_probe.sh` carried the entire bake-off. Ladder
+   reading: **not undiscoverable** — `SKILL.md` links all five, verified — but never needed.
+5. **`guided_grammar_enabled: False` on all six models, absent from the whole skill** —
+   Impact: H, Effort: L. A reader obeying principle 1 (config first) finds a flag named for
+   grammar-constrained decoding, set to False, on a skill whose spine is schema enforcement,
+   with nothing saying whether it is a red herring.
+6. **A correction did not propagate to a consumer that had already shipped it publicly** —
+   Impact: M, Effort: M. `a downstream consumer's LLM client module:4` still asserts `response_format`
+   needs a `name` or enforcement is silently disabled — falsified by Evolution 1 on 0.5.3,
+   load-bearing only on 0.4.x. Sanitized for public release at `1820290` with the wrong claim
+   in it.
+7. **The API key is a hardcoded literal in at least three repos** — Impact: M, Effort: L.
+   The skill tells *scripts* to read `auth.api_key` from settings, and says nothing about
+   calling code or about what an 8-digit literal looks like to a secret scanner.
+8. **`/v1/models/status` and `/api/status` disagree with `model_settings.json` on
+   `thinking_default`, and `loaded_count` is a permanent false positive** (it counts
+   MarkItDown). The grounding gate orders config → server and states no tiebreak for a
+   direct contradiction.
+
+### Hypotheses applied
+
+- **H6** — `/v1/models` named as not a health check, with the reproducing curl pair, in
+  `references/serving-ops.md`; and "not a `curl /v1/models`" added to the probe row of
+  `SKILL.md`'s flow table, which is the line a reader actually sees. Closes 1.
+- **H13** — non-English full-page OCR documented as a measured failure mode with both
+  models' behaviour, scoped to full-page (bounded extraction is a different task), plus the
+  `presence_penalty` inversion recorded explicitly as an **unverified mechanism**
+  (`references/model-selection.md`). Closes 2.
+- **H14** — both neighbour-collision directions, the IPv4/IPv6 split, and the
+  `/openapi.json` fingerprint (`references/serving-ops.md`). Closes 3.
+
+**Not applied, named so they are not lost:** 5, 6, 7, 8, and the constructive corollary the
+harvest found alongside 2 — *make the wrong answer inexpressible*: after both OCR attempts
+fabricated, a schema permitting only `{index, label}` and no text field returned 40 correct
+labels with zero fabrication, because there was nothing to fabricate with. The skill states
+the negative ("a schema forces shape, never content") and not this positive move. It is good
+content and it was outside the approved set; it goes first next run.
+
+### Validation results (settling Evolution 2's list)
+
+- **Three-part Output Contract without false-positive alarms** → **PENDING** (no batch run
+  since authoring; `omlx_client.py`/`omlx_batch.py` have zero invocations after
+  2026-07-30T01:54Z).
+- **Six corrected claims re-checked against the next release** → **PENDING** (no release to
+  check against: `/api/status` reports 0.5.3 with ~16 days uptime — the same process the
+  corrections were made on). One sub-item settled without an upgrade → **REVISED**:
+  Evolution 2 narrowed cold-load to "0.26–0.44 s/GB measured" off 3 samples; the server's own
+  rolling estimate is **0.502 s/GB over 48 observations**, above the band.
+  `serving-ops.md`'s wider 0.26–0.9 survives; the ledger's band was over-corrected.
+- **`claude-api` disambiguation preventing a real mis-fire** → **PENDING** (the skill fires
+  ~never, so the tiebreaker is never reached — ladder step 2, discoverability, not step 4).
+- **Any use on a different machine or oMLX version** → **PENDING** (one box, one version,
+  throughout).
+
+New, for a later run:
+
+- [ ] A pre-flight appears in traces again, and it is the probe or `/api/status` — not `/v1/models`.
+- [ ] A non-Latin-script document task picks bounded extraction or external OCR up front.
+- [ ] A port-8000 confusion is diagnosed in one step.
+- [ ] Whether the references get read in a *non-authoring* session now that H4 broadened the
+      description — if the skill fires more and the references still go unopened, that is a
+      Wu Wei answer rather than a discoverability one.
+
+**Verdict: PENDING.** One real use in the window, and it predates every change in Evolution 2.
+Nothing here is validated; what this round mostly established is that the skill is not being
+reached, which is why H4 (description) matters more than any content edit in this entry.
