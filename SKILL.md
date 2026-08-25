@@ -181,6 +181,9 @@ batching scheduler and the prefix cache.
 - **Inherits:** `core`.
 - **Consumed by:** `dev` (any build whose pipeline calls a local model), and any project doing
   local classification, extraction, scoring, grounding, or embeddings.
+- **Pairs with `vietnamese-copywriter`:** this skill owns *where the turn runs* and the measured
+  limits of local models on Vietnamese input (`references/model-selection.md`); that one owns
+  whether the Vietnamese that comes out is any good. Drafting Vietnamese locally needs both.
 - **Hands off to:** whatever training stack you use, when the answer really is a better
   checkpoint — which `references/eval-playbook.md` puts *last* on the ladder, for good reason.
 - **Origin:** mined 2026-07-29 from six independent codebases (a recruiter/GUI-automation
