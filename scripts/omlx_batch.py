@@ -145,7 +145,7 @@ def run_one(item, *, model, template, schema, name, abstain_key, max_tokens, tem
     try:
         out, meta = oc.chat_meta([{"role": "user", "content": render(template, item)}], model,
                                  schema=schema, name=name, temperature=temperature,
-                                 max_tokens=max_tokens, thinking=False, timeout=timeout)
+                                 max_tokens=max_tokens, timeout=timeout)
         # enforcement + warnings ARE the Output Contract's conditions 1 and 2. Recording them
         # is what makes this file auditable rather than merely reassuring.
         rec["enforcement"], rec["warnings"] = meta["enforcement"], meta["warnings"]
@@ -176,8 +176,10 @@ def main(argv=None) -> int:
     ap.add_argument("--workers", type=int, default=8,
                     help="match scheduler.max_concurrent_requests; use 1 for anything you "
                          "will compare across runs (batching breaks greedy reproducibility)")
-    ap.add_argument("--max-tokens", type=int, default=400)
-    ap.add_argument("--temperature", type=float, default=0.0)
+    ap.add_argument("--max-tokens", type=int, default=None,
+                    help="override the server's max_tokens (default: send nothing)")
+    ap.add_argument("--temperature", type=float, default=None,
+                    help="override the model's temperature (default: send nothing)")
     ap.add_argument("--timeout", type=int, default=180)
     a = ap.parse_args(argv)
 
@@ -197,7 +199,7 @@ def main(argv=None) -> int:
         print("XX no items", file=sys.stderr)
         return 2
 
-    print(f"-- {len(items)} items · model {a.model} · workers {a.workers} · temp {a.temperature}")
+    print(f"-- {len(items)} items · model {a.model} · workers {a.workers} · temp {a.temperature if a.temperature is not None else 'server'}")
     if a.workers > 1:
         print("   note: concurrent runs are NOT byte-reproducible; use --workers 1 to compare.")
 

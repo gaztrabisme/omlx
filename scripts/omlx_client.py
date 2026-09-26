@@ -142,8 +142,8 @@ def _post(path: str, payload: dict, timeout: int, retries: int) -> tuple[dict, l
     raise last or RuntimeError(f"omlx: no attempts made for {path}")
 
 
-def chat_meta(messages, model=None, *, schema=None, name="out", temperature=0.0,
-              max_tokens=512, thinking=False, thinking_budget=None, timeout=180, retries=2,
+def chat_meta(messages, model=None, *, schema=None, name="out", temperature=None,
+              max_tokens=None, thinking=None, thinking_budget=None, timeout=180, retries=2,
               strict_enforcement=True, extra=None) -> tuple[str, dict]:
     """One chat completion → (assistant text, meta).
 
@@ -155,23 +155,26 @@ def chat_meta(messages, model=None, *, schema=None, name="out", temperature=0.0,
     schema:   JSON Schema dict → sends the full json_schema wrapper. `type` is what enforces;
               omit it and the server silently returns unconstrained prose. `name` is required
               by the spec — always send it — but on 0.5.3 omitting it still enforced.
-    thinking: False (default) sends chat_template_kwargs.enable_thinking=False. The engine
-              default is ON (rambles, truncates the answer) but a per-model setting can
-              override it either way, so never rely on the default. `/no_think` is ignored.
-    thinking_budget: soft target, not a cap, and a no-op unless `thinking_budget_enabled`
-              and `reasoning_parser` are set for this model in model_settings.json. Setting
-              it implies thinking=True.
+    temperature, max_tokens, thinking, thinking_budget: None (default) sends nothing, so
+              the server's per-model settings (~/.omlx/model_settings.json) and global
+              `sampling` block apply. Standing rule: leave them None and change the server
+              settings instead (Gary, 2026-09-26). They remain for a caller who must
+              override, and a non-None value is sent exactly as given.
     strict_enforcement: with a schema, raise EnforcementDegraded if the server signalled it
               fell back to prompt coaxing. Set False to accept degraded output knowingly.
     """
-    payload = {"model": model or os.environ.get("OMLX_MODEL"),
-               "temperature": temperature, "max_tokens": max_tokens, "messages": messages}
+    payload = {"model": model or os.environ.get("OMLX_MODEL"), "messages": messages}
     if not payload["model"]:
         raise ValueError("no model: pass model= or set OMLX_MODEL")
+    # Generation parameters are sent only when a caller explicitly overrides them.
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if max_tokens is not None:
+        payload["max_tokens"] = max_tokens
     if thinking_budget is not None:
         payload["thinking_budget"] = thinking_budget
-        thinking = True
-    payload["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
+    if thinking is not None:
+        payload["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
     if schema is not None:
         payload["response_format"] = {"type": "json_schema",
                                       "json_schema": {"name": name, "schema": schema}}
@@ -208,6 +211,10 @@ def chat_meta(messages, model=None, *, schema=None, name="out", temperature=0.0,
                   "tool_calls": msg.get("tool_calls") or [],
                   "finish_reason": choice.get("finish_reason"),
                   "usage": data.get("usage")}
+
+
+def _flag(value):
+    return None if value is None else value == "on"
 
 
 def chat(messages, model=None, **kw) -> str:
@@ -315,8 +322,10 @@ def _main(argv) -> int:
     ap.add_argument("--prompt")
     ap.add_argument("--schema", type=Path, help="path to a JSON Schema file")
     ap.add_argument("--name", default="out")
-    ap.add_argument("--max-tokens", type=int, default=256)
-    ap.add_argument("--thinking", action="store_true")
+    ap.add_argument("--max-tokens", type=int, default=None,
+                    help="override the server's max_tokens (default: send nothing)")
+    ap.add_argument("--thinking", choices=("on", "off"), default=None,
+                    help="override the model's thinking setting (default: send nothing)")
     ap.add_argument("--list", action="store_true", help="list served models and exit")
     a = ap.parse_args(argv)
 
@@ -331,11 +340,11 @@ def _main(argv) -> int:
     if a.schema:
         schema = json.loads(a.schema.read_text())
         obj = chat_json(msgs, a.model, schema=schema, name=a.name,
-                        max_tokens=a.max_tokens, thinking=a.thinking,
+                        max_tokens=a.max_tokens, thinking=_flag(a.thinking),
                         require=tuple(schema.get("required", ())))
         print(json.dumps(obj, indent=2, ensure_ascii=False))
     else:
-        print(chat(msgs, a.model, max_tokens=a.max_tokens, thinking=a.thinking))
+        print(chat(msgs, a.model, max_tokens=a.max_tokens, thinking=_flag(a.thinking)))
     return 0
 
 

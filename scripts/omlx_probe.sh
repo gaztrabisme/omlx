@@ -196,7 +196,8 @@ if model:
     if model not in ms:
         print(f"     [{model}]")
         print( "       WARN no per-model settings entry — engine defaults apply, and they are")
-        print( "            not visible here. Send enable_thinking and sampling explicitly.")
+        print( "            not visible here. Add an entry in model_settings.json; do not")
+        print( "            send sampling or thinking in requests.")
         raise SystemExit(0)
     names = [model]
 else:
@@ -286,8 +287,7 @@ if model not in loaded:
             print("       lower memory_guard_tier. Retrying will not help.")
         raise SystemExit(1)
 
-p = {"model": model, "temperature": 0, "max_tokens": 300,
-     "chat_template_kwargs": {"enable_thinking": False},
+p = {"model": model,
      "messages": [{"role": "user", "content":
                    "Count from 1 to 120, one number per line, nothing else."}]}
 r = urllib.request.Request(endpoint + "/chat/completions", data=json.dumps(p).encode(),
@@ -330,8 +330,7 @@ if [ "$DEEP" = "1" ]; then
     curl -s -D "$HDR" -o "$BODY" --max-time 180 \
       -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
       -X POST "$ENDPOINT/chat/completions" -d @- <<JSON
-{"model": "$MODEL", "temperature": 0, "max_tokens": 64,
- "chat_template_kwargs": {"enable_thinking": false},
+{"model": "$MODEL",
  "response_format": {"type": "json_schema", "json_schema": {"name": "probe",
    "schema": {"type": "object", "additionalProperties": false, "required": ["ok", "n"],
               "properties": {"ok": {"type": "boolean"},

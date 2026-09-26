@@ -1,5 +1,11 @@
 # Choosing the model — and choosing local at all
 
+> **Standing rule (Gary, 2026-09-26): do not send generation parameters in requests.**
+> Sampling, `max_tokens`, `seed` and thinking (`enable_thinking`, `thinking_budget`) are set
+> per model in `~/.omlx/model_settings.json` and globally in `~/.omlx/settings.json`
+> (`sampling`). Where this file measures the effect of a parameter or shows it in a payload,
+> read that as what to configure on the server, not what to put in a request.
+
 ## The roster, by role
 
 Get the truth from `GET /v1/models`, never from memory. What a typical install carries:

@@ -4,6 +4,12 @@ What oMLX actually accepts on the wire, and which fields silently do nothing.
 Verified against **oMLX 0.5.3** (`GET /openapi.json` + live probes), 2026-07-29.
 Re-verify after an oMLX upgrade — the surface has drifted before.
 
+> **Standing rule (Gary, 2026-09-26): do not send generation parameters in requests.**
+> Sampling, `max_tokens`, `seed` and thinking (`enable_thinking`, `thinking_budget`) are set
+> per model in `~/.omlx/model_settings.json` and globally in `~/.omlx/settings.json`
+> (`sampling`). Where this file measures the effect of a parameter or shows it in a payload,
+> read that as what to configure on the server, not what to put in a request.
+
 ## Endpoints
 
 | Method | Path | Notes |

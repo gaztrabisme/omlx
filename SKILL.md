@@ -58,11 +58,15 @@ batching scheduler and the prefix cache.
    anything you asked for happened. And for enforcement the artifact includes *what you sent*:
    an unconstrained model returns well-formed JSON with your exact keys, so the response alone
    can never tell you a grammar ran (see the Output Contract).
-3. **Two fields decide whether you get an answer at all — never let either default.**
-   `response_format.type` defaults to `"text"`, so omitting it silently disables enforcement
-   (reproduced by negative control on 0.5.3). `chat_template_kwargs.enable_thinking` defaults
-   ON *at the engine*, but a per-model setting can override it either way — so the default is
-   not knowable from the request. Send both explicitly on every call.
+3. **Never send generation parameters.** `temperature`, `top_p`, `top_k`, `min_p`,
+   `repetition_penalty`, `presence_penalty`, `frequency_penalty`, `seed`, `max_tokens`,
+   `chat_template_kwargs.enable_thinking` and `thinking_budget` are owned by the server:
+   per model in `~/.omlx/model_settings.json`, globally in the `sampling` block of
+   `~/.omlx/settings.json`. Leave them out of every request. To know what a call will run
+   with, read those files; to change it, change them, not the request (Gary, 2026-09-26).
+   The one field you must still send is `response_format` with `type: "json_schema"` (and
+   `name`) when you need structured output: its default `"text"` silently disables
+   enforcement (reproduced by negative control on 0.5.3).
 4. **A schema forces shape — never content, and never abstention.** A forced `{x,y}` invents
    coordinates for an off-screen target. Give every perception/lookup schema a `found:false` +
    `reason` branch, and fence content in code (banned substrings, length caps) for anything a
@@ -91,13 +95,13 @@ batching scheduler and the prefix cache.
 | Any call at all | `scripts/omlx_probe.sh --model <id>` first — server up, key valid, model **loaded**, scheduler not saturated, and the flags that silently change behaviour. Add `--canary` before a long run, `--deep` to prove enforcement. **Not a `curl /v1/models`** — that returns 200 with every model listed while nothing is loaded, so it cannot see the cold load it is supposed to warn you about | `references/serving-ops.md` |
 | Typed JSON out of a local model | `omlx_client.chat_json(..., with_meta=True)` with a schema **and** an abstention branch — `with_meta` is what returns the enforcement proof the Output Contract asks you to record | `references/request-contract.md` |
 | The same over N items | `scripts/omlx_batch.py` — enforcement proven per item, abstention branch required, JSONL audit trail out | `references/eval-playbook.md` |
-| The model rambled / truncated / ignored the schema | thinking flag, then `response_format.type` + `name`, then `max_tokens` headroom | `references/request-contract.md` |
+| The model rambled / truncated / ignored the schema | `response_format.type` + `name`, then the model's thinking and `max_tokens` settings in `model_settings.json` / `settings.json` (never in the request) | `references/request-contract.md` |
 | Server won't answer, or is 5× slow | zombie-port check, cold-load, model starvation, memory guard | `references/serving-ops.md` |
 | Faster | prefix cache first (49 s → 1.7 s), then concurrency, then MTP. Not DFlash, not SpecPrefill | `references/performance.md` |
 | Which model / local vs cloud | roster by role + routing rules; certify model *and* thinking flag together | `references/model-selection.md` |
-| Screenshot / GUI grounding / VQA | crop to near-square, greedy sampling, abstention branch, one-word VQA | `references/model-selection.md` §Vision |
+| Screenshot / GUI grounding / VQA | crop to near-square, greedy sampling set in `model_settings.json`, abstention branch, one-word VQA | `references/model-selection.md` §Vision |
 | "Is the local model good enough?" | golden set + same-model baseline; hand-read the misses | `references/eval-playbook.md` |
-| Model won't call my tool | read the checkpoint's own `chat_template.jinja`; grep misses for native markers to rule out the parser; then thinking ON + token headroom | `references/request-contract.md` §Tool calling |
+| Model won't call my tool | read the checkpoint's own `chat_template.jinja`; grep misses for native markers to rule out the parser; then thinking ON + token headroom in `model_settings.json` | `references/request-contract.md` §Tool calling |
 | Embeddings / rerank / STT / TTS | request shapes; embedding inputs are **silently truncated** by default | `references/request-contract.md` |
 
 ## Gates (declared, inherited from core)
@@ -149,12 +153,13 @@ batching scheduler and the prefix cache.
 - Concluding "enforcement is on" from a parseable response. An unconstrained model returns
   well-formed JSON with your exact keys if you ask nicely. Check what you *sent*.
 - `/no_think` or `/think` in the prompt — ignored on this build.
-- Setting a huge `max_tokens` on the theory that it won't bound reasoning anyway. On 0.5.3 it
-  **does** bound total generation — so the real risk is the inverse: too small a budget with
-  thinking on lets the reasoning eat the answer and returns a truncated ramble at
-  `finish_reason: length`.
-- A tight-but-nonzero `thinking_budget` — it relocates the spiral into `content` instead of
-  saving anything. Use 0 / `enable_thinking:false`, or give it real room.
+- Sending any generation parameter in the request (`temperature`, `max_tokens`,
+  `enable_thinking`, `seed`, …). The server's per-model settings own them (rule 3). A
+  per-request override silently changes what is being measured and drifts from the
+  configuration everyone else runs with.
+- A small `max_tokens` with thinking on (in the server settings): reasoning eats the answer
+  and returns a truncated ramble at `finish_reason: length`. A tight-but-nonzero
+  `thinking_budget` relocates the spiral into `content`.
 - Sending `thinking_budget` without checking `thinking_budget_enabled` + `reasoning_parser`
   server-side — otherwise it does nothing.
 - A forced schema with no abstention branch on a perception or lookup task.
@@ -181,9 +186,9 @@ batching scheduler and the prefix cache.
 - **Inherits:** `core`.
 - **Consumed by:** `dev` (any build whose pipeline calls a local model), and any project doing
   local classification, extraction, scoring, grounding, or embeddings.
-- **Pairs with `vietnamese-copywriter`:** this skill owns *where the turn runs* and the measured
-  limits of local models on Vietnamese input (`references/model-selection.md`); that one owns
-  whether the Vietnamese that comes out is any good. Drafting Vietnamese locally needs both.
+- **Pairs with the owning domain skill:** this skill owns *where the turn runs* and the measured
+  limits of local models on Vietnamese input (`references/model-selection.md`); the domain skill
+  owns whether the resulting artifact is fit for purpose.
 - **Hands off to:** whatever training stack you use, when the answer really is a better
   checkpoint — which `references/eval-playbook.md` puts *last* on the ladder, for good reason.
 - **Origin:** mined 2026-07-29 from six independent codebases (a recruiter/GUI-automation
